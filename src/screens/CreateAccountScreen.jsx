@@ -1,22 +1,49 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, FlatList, Image, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, FlatList, Image, StyleSheet, Modal } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import Logo from '../../assets/Logo.png';
-import { Icon } from 'react-native-elements';
+import Header from '../components/Header';
 import { categories } from '../utils/Categories';
 
 const CreateAccountScreen = () => {
   const [selectedDishes, setSelectedDishes] = useState([]);
   const [search, setSearch] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState(categories[0]); // Seleccionar la primera categoría por defecto
+  const [selectedCategory, setSelectedCategory] = useState(categories[0]);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [dishToAdd, setDishToAdd] = useState(null);
+  const [quantity, setQuantity] = useState(1);
+  const [notes, setNotes] = useState('');
   const navigation = useNavigation();
 
   const handleSelectDish = (dish) => {
-    setSelectedDishes((prev) => [...prev, dish]);
+    setDishToAdd(dish);
+    setQuantity(1);
+    setNotes('');
+    setModalVisible(true);
   };
 
+  const handleConfirmAddDish = () => {
+    setSelectedDishes((prev) => {
+      const existingDish = prev.find(dish => dish.name === dishToAdd.name);
+      if (existingDish) {
+        // Si el platillo ya existe, actualiza la cantidad y las observaciones
+        return prev.map(dish =>
+          dish.name === dishToAdd.name
+            ? { ...dish, quantity: dish.quantity + quantity, notes: notes || dish.notes }
+            : dish
+        );
+      } else {
+        // Si el platillo no existe, agrégalo con la cantidad y observaciones actuales
+        return [...prev, { ...dishToAdd, quantity, notes }];
+      }
+    });
+    setModalVisible(false);
+    setDishToAdd(null);
+    setQuantity(1);
+    setNotes('');
+  };
+  
   const handleGoToCart = () => {
-    navigation.navigate('CartScreen', { selectedDishes });
+    navigation.navigate('ConfirmAccountScreen', { selectedDishes });
   };
 
   const handleSelectCategory = (category) => {
@@ -29,72 +56,99 @@ const CreateAccountScreen = () => {
       <View style={styles.dishDetails}>
         <Text style={styles.dishName}>{item.name}</Text>
         <Text style={styles.dishDescription}>{item.description}</Text>
-        <Text style={styles.dishPrice}>{item.price}</Text>
       </View>
     </TouchableOpacity>
   );
 
   return (
     <View style={styles.container}>
-
-      <View style={styles.header}>
-        <View style={{ flexDirection: 'row', justifyContent:"center", alignItems: 'center', }}>
-          <Icon name="arrow-back-ios" size={35} color="black" onPress={() => navigation.goBack()} />        
-          <Text style={styles.title}>Genera una cuenta</Text>  
-        </View>
-        
-        <View style={{ flexDirection: 'row' }}>
-          <Image source={Logo} style={styles.logo} />
-        </View>
+      <Header title="Genera una cuenta" />
+      <View style={styles.searchContainer}>
+        <TextInput
+          style={styles.searchBar}
+          placeholder="Buscar platillo"
+          placeholderTextColor="#A0A0A0"
+          value={search}
+          onChangeText={setSearch}
+        />
       </View>
-
-      <View>
-        <View style={{paddingHorizontal:20}}>
-            <TextInput
-                style={styles.searchBar}
-                placeholder="Buscar platillo"
-                placeholderTextColor="#A0A0A0"
-                value={search}
-                onChangeText={setSearch}
-            />
-        </View>
-        
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryContainer}>
-            {categories.map((category) => (
-            <TouchableOpacity 
-                key={category.id} 
-                style={[
-                styles.categoryItem, 
-                selectedCategory?.id === category.id && styles.selectedCategory
-                ]}
-                onPress={() => handleSelectCategory(category)}
+      <View style={styles.categoryContainer}>
+        <FlatList
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          data={categories}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              style={[
+                styles.categoryItem,
+                selectedCategory?.id === item.id && styles.selectedCategory
+              ]}
+              onPress={() => handleSelectCategory(item)}
             >
-                <Image source={category.image} style={styles.categoryIcon} />
-                <Text style={[
-                  styles.categoryText, 
-                  selectedCategory?.id === category.id && styles.selectedCategoryText
-                ]}>
-                  {category.name}
-                </Text>
+              <Image source={item.image} style={styles.categoryIcon} />
+              <Text style={[
+                styles.categoryText,
+                selectedCategory?.id === item.id && styles.selectedCategoryText
+              ]}>
+                {item.name}
+              </Text>
             </TouchableOpacity>
-            ))}
-        </ScrollView>
-
-        {selectedCategory && (
-            <FlatList
-            data={selectedCategory.dishes.filter(dish => dish.name.toLowerCase().includes(search.toLowerCase()))}
-            renderItem={renderDish}
-            keyExtractor={(item) => item.id}
-            />
-        )}
-        
-        
-        
+          )}
+        />
       </View>
-        <TouchableOpacity style={styles.cartButton} onPress={handleGoToCart}>
-            <Image source={require('../../assets/favicon.png')} style={styles.cartIcon} />
-        </TouchableOpacity>
-      </View>
+      <FlatList
+        data={selectedCategory.dishes.filter(dish => dish.name.toLowerCase().includes(search.toLowerCase()))}
+        renderItem={renderDish}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={styles.flatListContent}
+        style={styles.flatList}
+      />
+      <TouchableOpacity style={styles.cartButton} onPress={handleGoToCart}>
+        <Image source={require('../../assets/favicon.png')} style={styles.cartIcon} />
+      </TouchableOpacity>
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={modalVisible}
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalView}>
+            {dishToAdd && (
+              <>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '80%' }}>
+                  <Image source={dishToAdd.image} style={styles.modalImage} />
+                  <View style={{ alignItems: 'center', justifyContent: "center" }}>
+                    <Text style={styles.modalTitle}>{dishToAdd.name}</Text>
+                    <View style={styles.quantityContainer}>
+                      <TouchableOpacity onPress={() => setQuantity(Math.max(1, quantity - 1))}>
+                        <Text style={styles.quantityButton}>-</Text>
+                      </TouchableOpacity>
+                      <Text style={styles.quantityText}>{quantity}</Text>
+                      <TouchableOpacity onPress={() => setQuantity(quantity + 1)}>
+                        <Text style={styles.quantityButton}>+</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
+                <TextInput
+                  style={styles.observationsInput}
+                  placeholder="Añadir observaciones..."
+                  placeholderTextColor="#A0A0A0"
+                  multiline
+                  value={notes}
+                  onChangeText={setNotes}
+                />
+                <TouchableOpacity style={styles.confirmButton} onPress={handleConfirmAddDish}>
+                  <Text style={styles.confirmButtonText}>Agregar</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
+    </View>
   );
 };
 
@@ -102,39 +156,55 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F5F5F5',
-    paddingTop: 25,
+  },
+  searchContainer: {
+    alignItems: 'center',
+    marginBottom: 10,
   },
   searchBar: {
+    width: '90%',
     backgroundColor: '#FFF',
     borderRadius: 10,
     padding: 10,
     fontSize: 16,
     borderWidth: 1,
     borderColor: '#9B1C31',
-    marginBottom: 10,
   },
   categoryContainer: {
-    marginBottom: 10,
+    marginVertical: 10,
   },
   categoryItem: {
     backgroundColor: '#FFF',
     padding: 8,
+    width: 110,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: 'black',
+    borderColor: '#000',
     alignItems: 'center',
     marginHorizontal: 5,
   },
   selectedCategory: {
-    backgroundColor: '#9B1C31',
+    backgroundColor: '#F8E1E7',
     borderColor: '#9B1C31',
   },
   categoryText: {
-    color: 'black',
-    fontWeight: 'bold',
+    color: '#000',
+    fontWeight: '400',
   },
   selectedCategoryText: {
-    color: '#FFF',
+    color: '#000',
+  },
+  categoryIcon: {
+    width: 40,
+    height: 40,
+    marginBottom: 5,
+  },
+  flatList: {
+    flex: 1,
+  },
+  flatListContent: {
+    paddingBottom: 20,
+    alignItems: 'center',
   },
   dishItem: {
     flexDirection: 'row',
@@ -145,7 +215,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#DDD',
     alignItems: 'center',
-    marginHorizontal:10,
+    width: '90%',
   },
   dishIcon: {
     width: 50,
@@ -163,11 +233,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
   },
-  dishPrice: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#9B1C31',
-  },
   cartButton: {
     position: 'absolute',
     bottom: 20,
@@ -175,41 +240,70 @@ const styles = StyleSheet.create({
     backgroundColor: '#9B1C31',
     padding: 15,
     borderRadius: 50,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 5,
   },
   cartIcon: {
     width: 30,
     height: 30,
     tintColor: '#FFF',
   },
-  categoryIcon: {
-    width: 40,
-    height: 40,
-    marginBottom: 5,
+  modalContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
   },
-  header: {
+  modalView: {
+    backgroundColor: 'white',
+    borderRadius: 10,
+    padding: 20,
+    width: '80%',
+    alignItems: 'center',
+  },
+  modalImage: {
+    width: 80,
+    height: 80,
+    marginBottom: 10,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  quantityContainer: {
+    borderWidth: 1,
+    borderRadius: 30,
+    borderColor: '#DDD',
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center', 
-    marginBottom: 20,
-    paddingHorizontal: 15,
-    padding:5,
-    backgroundColor: "#ffffff",
-    borderBottomColor: "#9B1C31",
-    borderBottomWidth:1,
+    alignItems: 'center',
+    marginVertical: 10,
   },
-  logo: {
-    width: 45,
-    height: 45,
+  quantityButton: {
+    fontSize: 20,
+    paddingHorizontal: 10,
+    color: '#DDD',
   },
-  title: { 
-    fontSize: 24, 
-    fontWeight: 'bold', 
-    marginBottom: 15,
+  quantityText: {
+    fontSize: 18,
+    marginHorizontal: 10,
+  },
+  observationsInput: {
+    width: '100%',
+    height: 60,
+    borderWidth: 1,
+    borderColor: '#DDD',
+    borderRadius: 5,
+    padding: 10,
+    marginBottom: 10,
+    textAlignVertical: 'top',
+  },
+  confirmButton: {
+    backgroundColor: '#9B1C31',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 5,
+  },
+  confirmButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
   },
 });
 
